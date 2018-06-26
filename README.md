@@ -6,7 +6,7 @@ March 2018
 
 0_question: Samantabhadras intial question
 
-1_answer: Chorobas inial anwser
+1_answer: Chorobas initial anwser
 
 
 June 2018
@@ -16,7 +16,7 @@ June 2018
 3_answer_optimized: Chorobas optimization 
 
 
-4_benchmark: Samantabhadras testcase for the altenative methods provided
+4_benchmark: Samantabhadras testcase for the two altenative methods provided
 
 4_method1: = 2_answer_patch set to function
 
