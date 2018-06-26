@@ -1,0 +1,64 @@
+#!/usr/bin/perl
+
+# Catch the canid in 
+# "The quick brown fox jumps over the lazy dog."
+
+use strict;
+use 5.010;	
+use XML::LibXML;
+use List::MoreUtils qw(uniq);
+
+my $xml = "<foo>The quick br<bar>o</bar>wn <baz>f<bar>o</bar>x</baz>";
+$xml .= " jumps over the lazy d<bar>o</bar>g.</foo>";
+
+my $new_element = "canid";
+my @queried = ("quick brown fox","lazy dog");
+$xml = &doubtful_method($xml,$_) foreach @queried;
+
+my $dom = XML::LibXML->load_xml( string => $xml);
+say $dom->to_literal;
+
+my @canids = 
+	uniq map { &catch_milestone($_) } ($dom->findnodes('//canid'));
+say "Canids addressed: ", join ", ", @canids;
+
+
+sub doubtful_method {
+	my $xml = $_[0];
+	my $queried = $_[1];
+	my $rex = join "(<.+?>)?", split //, $queried;
+	$xml =~ s/($rex)/&evaluate_match($1)/gem;
+	return $xml;
+}
+
+
+sub evaluate_match {
+	my $match = $_[0];
+	my $out;
+	eval { 
+		XML::LibXML->load_xml(string => "<test>".$match."</test>") 
+	};
+	if (ref($@)){
+		my $milestone = qq|<$new_element time="| . time . qq |"/>|;
+		$out = $milestone.$match.$milestone;
+	} else {
+		$out = "<$new_element>$match</$new_element>";
+	}
+	return $out;
+}
+
+sub catch_milestone {
+	my $node = $_[0];
+	my ($out);
+	if ($node->hasAttribute("time")) {
+		my $milestone = qq|<$new_element(.+?)?time="|;
+		$milestone.= $node->getAttribute("time") . qq|"(.+?)?>|;
+		my $rex = $milestone . "(?<new>.+?)" . $milestone;
+		$out = $+{new} if $dom->documentElement->toString =~ /($rex)/;
+		$out =~ s/<.+?>//gm;
+	} else {	
+		$out = $node->to_literal;
+	}
+	return $out;
+}
+

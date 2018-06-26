@@ -1,0 +1,58 @@
+#!/usr/bin/perl
+use warnings;
+use strict;
+use feature qw{ say };
+
+use XML::LibXML;
+use List::Util qw{ sum };
+
+sub insert_tag {
+    my ($text, $pos, $tag_name, $query) = @_;
+    my $before = substr $text, 0, $pos;
+    my $after  = substr $text, $pos;
+
+    my $parent = $text->parentNode;
+    $parent->insertBefore('XML::LibXML::Text'->new($before), $text);
+    $parent->insertAfter('XML::LibXML::Text'->new($after), $text);
+    my $tag = 'XML::LibXML::Element'->new($tag_name);
+    $parent->replaceChild($tag, $text);
+    $tag->{query} = $query;
+}
+
+my $xml = "<foo>The quick br<bar>o</bar>wn <baz>f<bar>o</bar>x</baz>";
+$xml .= " jumps over the lazy d<bar>o</bar>g.</foo>";
+
+my $new_element = "canid";
+my @queried = ("lazy dog", "quick brown fox",);
+
+my $dom = 'XML::LibXML'->load_xml(string => $xml);
+
+for my $query (@queried) {
+    my @texts = $dom->findnodes('//text()');
+    my ($from, $to) = (0, 0);
+    my $found;
+  OUTER:
+    while ($to <= $#texts) {
+        my $subtext = join "", @texts[ $from .. $to ];
+        for my $length (1 .. length $query) {
+            my $subquery = substr $query, 0, $length;
+            $found = index $subtext, $subquery;
+
+            ++$to, next OUTER if -1 != $found
+                              && $length < length $query
+                              && $length == length($subtext) - $found;
+
+            $to = ++$from, next OUTER if -1 == $found;
+        }
+
+        my $subtext_length = sum(map length, @texts[ $from .. $to ]);
+        my $last_pos = length($texts[$to]) - ($subtext_length - $found - length $query);
+
+        insert_tag($texts[$to], $last_pos, 'end', $query);
+        insert_tag($texts[$from], $found, 'start', $query);
+
+        last OUTER;
+    }
+}
+print $dom;
+say $dom->to_literal;

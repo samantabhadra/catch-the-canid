@@ -1,0 +1,173 @@
+#!/usr/bin/perl
+# June 25, 2018
+
+use strict;
+use feature qw{ say };
+use Benchmark qw(:all);
+use XML::LibXML;
+use List::MoreUtils qw(uniq);
+use Text::Diff;
+
+use utf8; 
+binmode STDOUT, ':utf8'; #set back to standard if Text::Diff is utilized 
+
+use Encode qw(decode_utf8);
+@ARGV = map { decode_utf8($_, 1) } @ARGV;
+
+my ($queried,$iteration,$file,) = @ARGV;
+my (@queried,$doc);
+
+$file = "5_sample_file" if !$file;	
+$doc = 'XML::LibXML'->load_xml(location => $file);
+
+if ($queried eq "test-1") {# method 2 is faster
+	$doc = &sample_xml;
+	@queried = ("quick brown fox", "lazy dog", "he", "e");
+	$iteration = -5;
+	$file = "";
+
+} elsif ($queried eq "test-2") { # method 2 is significantly faster
+	@queried = ("śrī", "syād", "āpta");
+	$iteration = 350;
+
+} elsif ($queried eq "test-3") {# method 1 tags more items than method 2
+	@queried = ("patra");
+
+} elsif ($queried eq "test-4") {# same as test-3, difference are easier to spot
+	@queried = ("vacana", "artha");
+
+} elsif ($queried eq "test-5") {# examples for the malfunction of method 2 occur also with diacritic terms
+	@queried = ("pratyakṣa", "ekāṃta");
+
+} elsif ($queried eq "test-6") {# a non-unicode sample-file	
+	$file = "6_sample_file2";	
+	$doc = 'XML::LibXML'->load_xml(location => $file);
+	@queried = ("a");
+	$iteration = 10;
+
+} else {
+
+	if (! $queried) {
+		say "Enter queried terms separated by comma:";
+		chomp($queried = <STDIN>);
+	}
+	@queried = split ",",$queried;
+
+	if (!$iteration){
+		say "Enter numeral for benchmark:";
+		chomp($iteration = <STDIN>);
+	}
+}
+
+say  "file: $file" if $file;
+
+&benchmark_main($doc,\@queried,$iteration);
+
+sub benchmark_main {
+
+	my ($doc,$queried,$iteration) = @_;
+
+	say "Size of document to string: ", length($doc->toString);
+	my $no = @{$queried};
+	say "Number of queried items: ", $no;
+
+	require("4_method1");
+	require("4_method2");
+
+	my $d = "---";
+	say $d;
+
+	my @one = &individual_properties(1,$doc,$queried);
+	my @two = &individual_properties(2,$doc,$queried);
+
+	say $d;	
+
+	if (@one == @two) {
+
+		say $#one + 1, " item(s) tagged with both methods.";
+		say "Unique item(s): ", join ", ", uniq @one if @one > 0;
+
+		say $d;	
+
+		my $r = timethese (
+  		$iteration,	{
+				'Method One' => sub { one($doc,$queried) },
+  	 		'Method Two' => sub { two($doc,$queried) }
+			}
+		);
+
+		cmpthese ($r);
+
+	} else {
+
+		say "Method one tagged ", $#one + 1, " item(s), method two ", $#two + 1, "!";
+		say "Method one tagged: ", join ", ", uniq @one;
+		say "Method two tagged: ", join ", ", uniq @two;
+
+		say "$d\nShow Differences: y/n?";
+
+		if (<STDIN> eq "y\n"){
+
+			binmode STDOUT;
+			my $diff = diff \&one($doc,$queried)->toString,  \&two($doc,$queried)->toString,  { 
+				CONTEXT => 0, STYLE => "Unified"
+			};
+			say "\n", $diff;
+		}
+
+	}
+
+	say "\n";
+
+}
+
+
+sub one {
+	my ($doc,$queried) = @_;
+	my $clone=&clone_doc($doc);
+	$clone = &choroba_var1($clone,$queried);
+	return $clone;
+}
+
+
+sub two {
+	my ($doc,$queried) = @_;
+	my $clone=&clone_doc($doc);
+	$clone = &choroba_var2($clone,$queried);
+	return $clone;
+}
+
+
+sub clone_doc {
+	my $old_doc = $_[0];
+
+	my $new_doc = XML::LibXML->createDocument( "1.0", "UTF-8" );
+	my $clone = $old_doc->documentElement->cloneNode(1);
+	$clone->setOwnerDocument($new_doc);
+ 	$new_doc->setDocumentElement( $clone );
+
+	return $new_doc;
+}
+
+sub individual_properties {
+
+	my ($var,$doc,$queried) = @_;
+
+	my $t0 = Benchmark->new;
+	my $clone = $var == 1 ? &one($doc,$queried) : &two($doc,$queried);
+	my $t1 = Benchmark->new;
+	my $td = timediff($t1,$t0);
+	say "Runtime method ", $var, ": " , timestr($td);
+
+	return map { $_->getAttribute('query') } ($clone->findnodes("//start"));
+}
+
+sub sample_xml {
+	my $xml = "<foo>The quick br<bar>o</bar>wn <baz>f<bar>o</bar>x</baz>";
+	$xml .= " jumps over the lazy d<bar>o</bar>g.</foo>";
+	return 'XML::LibXML'->load_xml(string => $xml);
+
+}
+
+
+1;

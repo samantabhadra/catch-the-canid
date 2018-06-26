@@ -1,0 +1,66 @@
+#!/usr/bin/perl
+use warnings;
+use strict;
+use feature qw{ say };
+
+use XML::LibXML;
+use List::Util qw{ sum };
+
+sub insert_tag_opt {
+    my ($text, $pos, $tag_name, $query) = @_;
+    my $before = substr $text, 0, $pos;
+    my $after  = substr $text, $pos;
+
+    my $parent = $text->parentNode;
+		my $preceding = $parent->insertBefore('XML::LibXML::Text'->new($before), $text);
+		my $following = $parent->insertAfter('XML::LibXML::Text'->new($after), $text);
+
+    my $tag = 'XML::LibXML::Element'->new($tag_name);
+    $parent->replaceChild($tag, $text);
+    $tag->{query} = $query;
+
+		return $preceding,$following
+}
+
+sub choroba_var2 {
+	my ($dom, $queried) = @_;
+	my @queried = @{$queried};
+
+	for my $query (@queried) {
+    my @texts = $dom->findnodes('//text()');
+    my ($from, $to) = (0, 0);
+    my $found;
+  OUTER:
+    while ($to <= $#texts) {
+        my $subtext = join "", @texts[ $from .. $to ];
+        for my $length (1 .. length $query) {
+            my $subquery = substr $query, 0, $length;
+            $found = index $subtext, $subquery;
+
+            ++$to, next OUTER if -1 != $found
+                              && $length < length $query
+                              && $length == length($subtext) - $found;
+
+            $to = ++$from, next OUTER if -1 == $found;
+        }
+
+        my $subtext_length = sum(map length, @texts[ $from .. $to ]);
+        my $last_pos = length($texts[$to]) - ($subtext_length - $found - length $query);
+
+
+				my @new_texts = insert_tag_opt($texts[$to], $last_pos, 'end', $query);
+				splice @texts, $to, 1, @new_texts;
+				my $start_text = $from == $to ? $new_texts[0] : $texts[$from];
+
+				insert_tag_opt($start_text, $found, 'start', $query);
+
+        $from += $from == $to ? 1 : 2;
+
+        last OUTER if $from > @texts;
+    }
+	}
+
+	return $dom;
+}
+
+1;
