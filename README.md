@@ -20,7 +20,7 @@ June 2018
 
 4_method1: = 2_answer_patch set to function
 
-4_method3: = 3_answer_optimized set to function
+4_method2: = 3_answer_optimized set to function
 
 5_sample_file: rich with non asccii latin characters, simple xml, courtesy: http://dipal.org/cgi-bin/dipal.cgi?nav=1001
 
