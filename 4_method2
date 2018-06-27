@@ -1,4 +1,7 @@
 #!/usr/bin/perl
+
+#this
+
 use warnings;
 use strict;
 use feature qw{ say };
@@ -54,7 +57,8 @@ sub choroba_var2 {
 
 				insert_tag_opt($start_text, $found, 'start', $query);
 
-        $from += $from == $to ? 1 : 2;
+        #$from += $from == $to ? 1 : 2;# patch 27.6.
+				$from += $from == $to++ ? 1 : 2;
 
         last OUTER if $from > @texts;
     }
